@@ -24,12 +24,11 @@ export async function onRequest(context) {
 
   try {
     // 2. 네이버 데이터랩 API 호출 (연령/성별 트렌드 키워드 추출)
-    const naverRes = await fetch('https://openapi.naver.com/v1/datalab/search', {
+    // 기존 openapi.naver.com 대신 naveropenapi.apigw.ntruss.com (NCLOUD 전용) 엔드포인트 사용
+    const naverRes = await fetch('https://naveropenapi.apigw.ntruss.com/datalab/v1/search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Naver-Client-Id': env.NAVER_CLIENT_ID || '',
-        'X-Naver-Client-Secret': env.NAVER_CLIENT_SECRET || '',
         'X-NCP-APIGW-API-KEY-ID': env.NAVER_CLIENT_ID || '',
         'X-NCP-APIGW-API-KEY': env.NAVER_CLIENT_SECRET || ''
       },
