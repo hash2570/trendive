@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrenDive - 실시간 트렌드 레이더</title>
+  <style>
+    :root {
+      --bg-color: #f4f6f8;
+      --card-bg: #ffffff;
+      --text-main: #191f28;
+      --text-sub: #8b95a1;
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
+
+    header { background: var(--card-bg); padding: 1rem 1.5rem; border-bottom: 1px solid #e5e8eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+    .logo { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; color: #1b64da; }
+    .live-tag { background: #e8f3ff; color: #1b64da; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; }
+
+    main { flex: 1; padding: 1.5rem; max-width: 1400px; width: 100%; margin: 0 auto; }
+    .trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 1.25rem; }
+
+    .trend-card { background: var(--card-bg); border-radius: var(--radius); padding: 1.25rem; box-shadow: 0 4px 16px rgba(0,0,0,0.04); cursor: pointer; transition: transform 0.2s ease; display: flex; flex-direction: column; justify-content: space-between; min-height: 260px; }
+    .trend-card:hover { transform: translateY(-4px); }
+
+    .card-preview { background: #f2f4f6; border-radius: 12px; height: 120px; display: flex; align-items: center; justify-content: center; color: var(--text-sub); font-size: 0.85rem; padding: 0.8rem; text-align: center; }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-top: 1rem; }
+
+    /* 모달 팝업 */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.active { display: flex; }
+    .modal-container { background: var(--card-bg); width: 80vw; height: 80vh; max-width: 1000px; max-height: 700px; border-radius: 20px; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+    .modal-body { flex: 1; padding: 2rem; overflow-y: auto; }
+    .close-btn { position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--text-sub); z-index: 10; }
+
+    /* 플로팅 스위처 */
+    .switcher-dock { position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.95); border: 1px solid #e5e8eb; box-shadow: 0 8px 24px rgba(0,0,0,0.15); border-radius: 30px; padding: 8px 12px; display: flex; gap: 10px; z-index: 110; }
+    .switcher-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: #f2f4f6; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+    .switcher-btn.active { background: #1b64da; color: white; }
+
+    @media (min-width: 1024px) {
+      .modal-container { flex-direction: row; }
+      .modal-body { width: calc(100% - 180px); }
+      .switcher-dock { position: relative; bottom: auto; right: auto; width: 180px; height: 100%; border-radius: 0 20px 20px 0; flex-direction: column; justify-content: center; align-items: center; border-left: 1px solid #e5e8eb; background: #f9fafb; padding: 0; }
+      .switcher-btn { width: 80%; border-radius: 12px; height: 44px; justify-content: flex-start; padding-left: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">🌊 TrenDive</div>
+    <div class="live-tag">네이버 & 유튜브 Live 연동중</div>
+  </header>
+
+  <main>
+    <div class="trend-grid" id="trendGrid">
+      <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">실시간 데이터를 불러오는 중입니다...</div>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-container">
+      <button class="close-btn" id="closeBtn">&times;</button>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="switcher-dock">
+        <button class="switcher-btn" data-platform="youtube">🔴 <span class="nav-text">유튜브</span></button>
+        <button class="switcher-btn" data-platform="naver">🟢 <span class="nav-text">네이버</span></button>
+        <button class="switcher-btn" data-platform="tiktok">🖤 <span class="nav-text">틱톡</span></button>
+        <button class="switcher-btn" data-platform="instagram">🩷 <span class="nav-text">인스타</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let fetchedData = null;
+    const trendGrid = document.getElementById('trendGrid');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalBody = document.getElementById('modalBody');
+    const closeBtn = document.getElementById('closeBtn');
+    const switcherBtns = document.querySelectorAll('.switcher-btn');
+
+    async function loadTrends() {
+      try {
+        const res = await fetch('/api/trends');
+        fetchedData = await res.json();
+        renderCards();
+      } catch (err) {
+        trendGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: red;">데이터 로딩 실패: 백엔드 연동을 확인하세요.</div>`;
+      }
+    }
+
+    function renderCards() {
+      if (!fetchedData) return;
+      trendGrid.innerHTML = Object.keys(fetchedData).map(key => {
+        const item = fetchedData[key];
+        return `
+          <div class="trend-card" onclick="openModal('${key}')">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+              <strong>${item.title}</strong>
+              ${item.isLive ? '<span style="color:#03cf5d; font-size:0.75rem;">● Live</span>' : '<span style="color:#8b95a1; font-size:0.75rem;">더미</span>'}
+            </div>
+            <div class="card-preview">${item.preview}</div>
+            <h3 style="margin: 0.8rem 0 0.5rem 0; font-size:1.1rem;">${item.keyword}</h3>
+            <div class="card-footer">
+              <span style="background:#e8f3ff; color:#1b64da; padding:3px 6px; border-radius:4px; font-weight:600;">${item.target}</span>
+              <span style="color:#f04452; font-weight:bold;">${item.velocity}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateModalContent(key) {
+      const data = fetchedData[key];
+      switcherBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.platform === key));
+
+      let videoSection = '';
+      if (key === 'youtube' && data.videoList && data.videoList.length > 0) {
+        videoSection = `
+          <div style="margin-bottom: 1.5rem;">
+            <h4>🎬 연관 급상승 숏츠 미리보기</h4>
+            <div style="display:flex; gap:10px; margin-top:8px; overflow-x:auto;">
+              ${data.videoList.map(v => `
+                <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" style="text-decoration:none; color:inherit; width:160px; flex-shrink:0;">
+                  <img src="${v.thumbnail}" style="width:100%; border-radius:8px; aspect-ratio:9/16; object-fit:cover;" />
+                  <p style="font-size:0.8rem; margin-top:4px; font-weight:bold; line-height:1.2; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${v.title}</p>
+                </a>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else {
+        videoSection = `
+          <div style="background:#000; color:#fff; height:160px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:1.5rem; text-align:center; padding:1rem;">
+            [ ${data.title} 0.8배 모달 상영 영역 ]
+          </div>
+        `;
+      }
+
+      modalBody.innerHTML = `
+        <h2>${data.title}</h2>
+        <h1 style="font-size: 1.8rem; margin: 0.5rem 0 1rem 0;">${data.keyword}</h1>
+        ${videoSection}
+        <div style="background:#f9fafb; padding:1rem; border-radius:12px; margin-bottom:1rem;">
+          <h4>💡 분석 요약</h4>
+          <p style="margin-top:0.4rem; color:#4e5968;">${data.summary}</p>
+        </div>
+        <div style="display:flex; gap:1rem;">
+          <div style="background:#f9fafb; padding:1rem; border-radius:12px; flex:1;">
+            <h4>📈 수명주기</h4>
+            <p style="font-weight:bold; margin-top:0.3rem;">${data.lifecycle}</p>
+          </div>
+          <div style="background:#f9fafb; padding:1rem; border-radius:12px; flex:1;">
+            <h4>👥 반응 타겟</h4>
+            <p style="font-weight:bold; margin-top:0.3rem;">${data.target}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function openModal(key) { updateModalContent(key); modalOverlay.classList.add('active'); }
+    function closeModal() { modalOverlay.classList.remove('active'); }
+
+    closeBtn.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+    switcherBtns.forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); updateModalContent(btn.dataset.platform); }));
+
+    loadTrends();
+  </script>
+</body>
+</html>
