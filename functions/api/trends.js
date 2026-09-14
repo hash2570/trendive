@@ -20,7 +20,7 @@ export async function onRequest(context) {
   const pastDate = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
   const formatDate = (d) => d.toISOString().split('T')[0];
 
-  let topKeyword = "성수"; // 기본 fallback 키워드
+  let topKeyword = "인기 쇼츠"; // 기본 fallback 키워드
 
   try {
     // 2. 네이버 데이터랩 API 호출 (연령/성별 트렌드 키워드 추출)
