@@ -682,74 +682,50 @@ export async function onRequest(context) {
     overallTop10[0]?.keyword ||
     "실시간 트렌드";
 
-  // ============================================================
-  // 14. YouTube Shorts
+// ============================================================
+  // 14. YouTube Shorts (videoId 중복 제거 적용)
   // ============================================================
 
   let youtubeShorts = [];
 
-  if (env.YOUTUBE_API_KEY) {
+  if (env.YOUTUBE_API_KEY && topKeyword !== "실시간 트렌드") {
     try {
       const ytUrl =
         `https://www.googleapis.com/youtube/v3/search` +
         `?part=snippet` +
-        `&maxResults=6` +
-        `&q=${encodeURIComponent(
-          topKeyword + " #shorts"
-        )}` +
+        `&maxResults=10` +
+        `&q=${encodeURIComponent(topKeyword + " #shorts")}` +
         `&type=video` +
         `&videoDuration=short` +
-        `&order=date` +
+        `&order=relevance` +
         `&key=${env.YOUTUBE_API_KEY}`;
 
-      const ytRes =
-        await fetch(ytUrl);
+      const ytRes = await fetch(ytUrl);
 
       if (ytRes.ok) {
-        const ytData =
-          await ytRes.json();
+        const ytData = await ytRes.json();
+        const seenIds = new Set();
 
-        youtubeShorts =
-          (ytData.items || [])
-            .filter(
-              (item) =>
-                item.id &&
-                item.id.videoId
-            )
-            .map((item) => ({
-              title:
-                item.snippet?.title ||
-                "",
-
-              videoId:
-                item.id.videoId,
-
-              thumbnail:
-                item.snippet?.thumbnails
-                  ?.high?.url ||
-                item.snippet?.thumbnails
-                  ?.medium?.url ||
-                item.snippet?.thumbnails
-                  ?.default?.url ||
-                "",
-
-              channel:
-                item.snippet
-                  ?.channelTitle ||
-                "",
-
-              publishedAt:
-                item.snippet
-                  ?.publishedAt ||
-                ""
-            }));
+        youtubeShorts = (ytData.items || [])
+          .filter((item) => {
+            const vId = item.id?.videoId;
+            if (!vId || seenIds.has(vId)) return false;
+            seenIds.add(vId);
+            return true;
+          })
+          .slice(0, 6)
+          .map((item) => ({
+            title: item.snippet?.title || "",
+            videoId: item.id.videoId,
+            thumbnail:
+              item.snippet?.thumbnails?.high?.url ||
+              item.snippet?.thumbnails?.medium?.url || "",
+            channel: item.snippet?.channelTitle || "",
+            publishedAt: item.snippet?.publishedAt || ""
+          }));
       }
-
     } catch (error) {
-      console.error(
-        "YouTube API error:",
-        error
-      );
+      console.error("YouTube API error:", error);
     }
   }
 
