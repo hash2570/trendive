@@ -1,4 +1,5 @@
 export async function onRequest(context) {
+  console.log("[TRENDIVE] FUNCTION START");
   const { env } = context;
 
   // ============================================================
