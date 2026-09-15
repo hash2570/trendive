@@ -7,7 +7,7 @@ export async function onRequest(context) {
 
   if (env.TRENDIVE_KV) {
     try {
-      const cached = await env.TRENDIVE_KV.get("trendive_data");
+      const cached = await env.TRENDIVE_KV.get("trendive_data_v2");
 
       if (cached) {
         return new Response(cached, {
@@ -819,7 +819,7 @@ export async function onRequest(context) {
   if (env.TRENDIVE_KV) {
     try {
       await env.TRENDIVE_KV.put(
-        "trendive_data",
+        "trendive_data_v2",
         jsonString,
         {
           expirationTtl: 7200
