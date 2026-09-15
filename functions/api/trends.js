@@ -407,6 +407,12 @@ export async function onRequest(context) {
     risingTop10,
     leaderboard: [...trendScores].sort((a, b) => b.risingScore - a.risingScore),
     youtubeShorts,
+
+    debug: {
+      trendScoreCount: trendScores.length,
+      allResultsCount: allResults.length
+    },
+
     updatedAt: new Date().toISOString(),
     meta: {
       source: ["Naver DataLab", "YouTube"],
