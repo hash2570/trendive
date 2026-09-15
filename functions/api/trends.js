@@ -206,6 +206,12 @@ export async function onRequest(context) {
       }
 
       const data = await response.json();
+
+      console.log(
+        "[TRENDIVE] Naver results:",
+        data.results?.length || 0
+      );
+
       return data.results || [];
     } catch (error) {
       console.error("Naver batch request failed:", error);
